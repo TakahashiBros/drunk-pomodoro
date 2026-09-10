@@ -9,19 +9,26 @@ const startBtn = document.getElementById("start-btn");
 
 const modeLabel = document.getElementById("mode-label");
 const timeDisplay = document.getElementById("time-display");
+const nextLabel = document.getElementById("next-label");
 const cycleCount = document.getElementById("cycle-count");
-const cansContainer = document.getElementById("cans-container");
+const earnedCount = document.getElementById("earned-count");
+const progressArc = document.getElementById("progress-arc");
+
+const setupCans = document.getElementById("setup-cans");
+const timerCans = document.getElementById("timer-cans");
+const completeCans = document.getElementById("complete-cans");
+
 const toggleBtn = document.getElementById("toggle-btn");
 const skipBtn = document.getElementById("skip-btn");
 const resetBtn = document.getElementById("reset-btn");
 const settingsBtn = document.getElementById("settings-btn");
-const progressArc = document.getElementById("progress-arc");
+const completeSettingsBtn = document.getElementById("complete-settings-btn");
 const finalCycles = document.getElementById("final-cycles");
 const finalStudyTime = document.getElementById("final-study-time");
 const newSessionBtn = document.getElementById("new-session-btn");
 
-const ARC_RADIUS = 90;
-const ARC_LENGTH = Math.PI * ARC_RADIUS;
+const ARC_RADIUS = 52;
+const ARC_LENGTH = 2 * Math.PI * ARC_RADIUS; // full ring
 progressArc.style.strokeDasharray = ARC_LENGTH;
 
 let studyMinutes = 25;
@@ -29,10 +36,16 @@ let breakMinutes = 5;
 let targetCycles = 4;
 let mode = "study";
 let totalSecondsForPhase = studyMinutes * 60;
-let secondsLeft = studyMinutes * 60;
-let intervalId = null;
+let secondsLeft = totalSecondsForPhase;
 let cyclesCompleted = 0;
 let studySecondsElapsed = 0;
+
+// The phase clock is wall-clock based, so the ring fills smoothly and the
+// countdown stays honest when the tab is throttled in the background.
+let phaseStart = Date.now();
+let pausedElapsed = 0;
+let running = false;
+let intervalId = null;
 
 let audioCtx = null;
 let noiseBuffer = null;
@@ -43,9 +56,7 @@ function getAudioContext() {
     const length = audioCtx.sampleRate * 2;
     noiseBuffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < length; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
   }
   return audioCtx;
 }
@@ -85,37 +96,55 @@ function playCanOpen() {
 }
 
 const CAN_SVG = `
-  <svg class="can-svg" viewBox="0 0 44 84">
-    <ellipse class="can-body" cx="22" cy="75" rx="14" ry="4" />
-    <rect class="can-body" x="8" y="21" width="28" height="54" />
-    <rect class="can-label" x="8" y="39" width="28" height="18" />
-    <path class="can-body" d="M 8 21 L 11 16 L 33 16 L 36 21 Z" />
-    <ellipse class="can-lid" cx="22" cy="16" rx="11" ry="3.5" />
-    <ellipse class="can-hole" cx="22" cy="15.5" rx="5.5" ry="2" />
-    <ellipse class="can-tab" cx="22" cy="15.5" rx="4" ry="1.5" />
+  <svg class="can-svg" viewBox="0 0 44 90">
     <g class="can-foam">
-      <circle cx="16" cy="9" r="3" />
-      <circle cx="24" cy="5" r="3.6" />
-      <circle cx="29" cy="10" r="2.6" />
+      <circle cx="16" cy="12" r="3.4" />
+      <circle cx="24" cy="7" r="4.2" />
+      <circle cx="30" cy="13" r="3" />
     </g>
+    <ellipse class="can-base" cx="22" cy="80" rx="14" ry="4" />
+    <rect class="can-body" x="8" y="24" width="28" height="58" rx="7" />
+    <rect class="can-band" x="8" y="44" width="28" height="17" />
+    <path class="can-neck" d="M 8 34 L 11 19 L 33 19 L 36 34 Z" />
+    <ellipse class="can-lid" cx="22" cy="19" rx="11.5" ry="3.6" />
+    <ellipse class="can-hole" cx="22" cy="18.4" rx="5.5" ry="2" />
+    <ellipse class="can-tab" cx="22" cy="18.4" rx="3.6" ry="1.4" />
   </svg>
 `;
 
-function renderCans() {
-  cansContainer.innerHTML = "";
-  for (let i = 0; i < targetCycles; i++) {
+function fillCans(container, count) {
+  container.innerHTML = "";
+  for (let i = 0; i < count; i++) {
     const can = document.createElement("div");
     can.className = "can";
     can.innerHTML = CAN_SVG;
-    cansContainer.appendChild(can);
+    container.appendChild(can);
   }
 }
 
+function readGoal() {
+  return clampInput(cyclesInput, 4);
+}
+
+function renderCans() {
+  fillCans(timerCans, targetCycles);
+  fillCans(completeCans, targetCycles);
+  renderSetupPreview();
+}
+
+// The setup shelf previews tonight's goal, so it tracks the input rather than
+// progress and its cans always sit closed.
+function renderSetupPreview() {
+  fillCans(setupCans, readGoal());
+}
+
 function updateCans() {
-  const cans = cansContainer.children;
-  for (let i = 0; i < cans.length; i++) {
-    cans[i].classList.toggle("opened", i < cyclesCompleted);
-  }
+  [timerCans, completeCans].forEach((container) => {
+    const cans = container.children;
+    for (let i = 0; i < cans.length; i++) {
+      cans[i].classList.toggle("opened", i < cyclesCompleted);
+    }
+  });
 }
 
 function formatTime(totalSeconds) {
@@ -125,30 +154,52 @@ function formatTime(totalSeconds) {
 }
 
 function formatDuration(totalSeconds) {
-  if (totalSeconds < 60) return "less than a minute";
+  if (totalSeconds < 60) return "under a minute";
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   if (hours === 0) return `${minutes} min`;
   return `${hours} h ${minutes} min`;
 }
 
-function updateDisplay() {
-  timeDisplay.textContent = formatTime(secondsLeft);
-  modeLabel.textContent = mode === "study" ? "STUDY" : "DRINK";
+// A typed-in number ignores the input's own min/max, so clamp to them here.
+function clampInput(input, fallback) {
+  const min = Number(input.min) || 1;
+  const max = Number(input.max) || Infinity;
+  const raw = parseInt(input.value, 10);
+  return Math.min(max, Math.max(min, Number.isNaN(raw) ? fallback : raw));
+}
 
-  const displayedCycle = mode === "study" ? cyclesCompleted + 1 : cyclesCompleted;
-  cycleCount.textContent = `Cycle ${displayedCycle} of ${targetCycles}`;
-  updateCans();
+function phaseElapsed() {
+  return running ? (Date.now() - phaseStart) / 1000 : pausedElapsed;
+}
+
+function beginPhase() {
+  phaseStart = Date.now();
+  pausedElapsed = 0;
+}
+
+function updateDisplay() {
+  const elapsed = Math.min(totalSecondsForPhase, phaseElapsed());
+  const progress = Math.min(1, Math.max(0, elapsed / totalSecondsForPhase));
+
+  timeDisplay.textContent = formatTime(secondsLeft);
+  modeLabel.textContent = mode === "study" ? "Study" : "Drink";
+  nextLabel.textContent =
+    mode === "study" ? `then ${breakMinutes} min to drink` : `then ${studyMinutes} min of study`;
+  cycleCount.textContent = `Cycle ${
+    mode === "study" ? cyclesCompleted + 1 : cyclesCompleted
+  } / ${targetCycles}`;
+  earnedCount.textContent = cyclesCompleted;
 
   document.body.classList.toggle("break-mode", mode === "break");
-  document.title = `${formatTime(secondsLeft)} - ${mode === "study" ? "Study" : "Drink"}`;
+  document.title = `${formatTime(secondsLeft)} — ${mode === "study" ? "Study" : "Drink"}`;
 
-  const elapsed = totalSecondsForPhase - secondsLeft;
-  const progress = Math.min(1, Math.max(0, elapsed / totalSecondsForPhase));
   progressArc.style.strokeDashoffset = ARC_LENGTH * (1 - progress);
+  updateCans();
 }
 
 function switchMode() {
+  beginPhase();
   if (mode === "study") {
     cyclesCompleted++;
     playCanOpen();
@@ -158,105 +209,121 @@ function switchMode() {
     }
     mode = "break";
     totalSecondsForPhase = breakMinutes * 60;
-    secondsLeft = totalSecondsForPhase;
   } else {
     mode = "study";
     totalSecondsForPhase = studyMinutes * 60;
-    secondsLeft = totalSecondsForPhase;
   }
+  secondsLeft = totalSecondsForPhase;
   updateDisplay();
 }
 
-function tick() {
-  secondsLeft--;
-  if (secondsLeft < 0) {
-    switchMode();
-    return;
+// 200 ms so the ring's CSS transition always has a fresh target to glide to.
+function frame() {
+  const elapsed = phaseElapsed();
+  const left = Math.max(0, Math.ceil(totalSecondsForPhase - elapsed));
+  if (left !== secondsLeft) {
+    if (mode === "study") studySecondsElapsed += secondsLeft - left;
+    secondsLeft = left;
   }
-  if (mode === "study") studySecondsElapsed++;
   updateDisplay();
+  if (running && elapsed >= totalSecondsForPhase) switchMode();
 }
 
-function startInterval() {
+function startClock() {
   if (intervalId) return;
-  intervalId = setInterval(tick, 1000);
-  toggleBtn.textContent = "Pause";
+  intervalId = setInterval(frame, 200);
 }
 
-function stopInterval() {
+function stopClock() {
   clearInterval(intervalId);
   intervalId = null;
+}
+
+function resume() {
+  phaseStart = Date.now() - pausedElapsed * 1000;
+  running = true;
+  toggleBtn.textContent = "Pause";
+  startClock();
+}
+
+function pause() {
+  pausedElapsed = (Date.now() - phaseStart) / 1000;
+  running = false;
   toggleBtn.textContent = "Resume";
+  stopClock();
+  updateDisplay();
 }
 
-function goToTimerScreen() {
-  setupScreen.classList.add("hidden");
-  completeScreen.classList.add("hidden");
-  timerScreen.classList.remove("hidden");
-  cansContainer.classList.remove("hidden");
-}
-
-function goToSetupScreen() {
-  stopInterval();
-  timerScreen.classList.add("hidden");
-  completeScreen.classList.add("hidden");
-  setupScreen.classList.remove("hidden");
-  cansContainer.classList.add("hidden");
-  document.title = "Drunk Pomodoro";
-}
-
-function goToCompleteScreen() {
-  stopInterval();
-  timerScreen.classList.add("hidden");
-  completeScreen.classList.remove("hidden");
-  updateCans();
-  finalCycles.textContent = `${cyclesCompleted} ${cyclesCompleted === 1 ? "beer" : "beers"}`;
-  finalStudyTime.textContent = formatDuration(studySecondsElapsed);
-  document.title = "Drinking session complete";
-}
-
-startBtn.addEventListener("click", () => {
-  studyMinutes = Math.max(1, parseInt(studyInput.value, 10) || 25);
-  breakMinutes = Math.max(1, parseInt(breakInput.value, 10) || 5);
-  targetCycles = Math.max(1, parseInt(cyclesInput.value, 10) || 4);
+function startSession() {
+  studyMinutes = clampInput(studyInput, 25);
+  breakMinutes = clampInput(breakInput, 5);
+  targetCycles = readGoal();
   mode = "study";
   totalSecondsForPhase = studyMinutes * 60;
   secondsLeft = totalSecondsForPhase;
   cyclesCompleted = 0;
   studySecondsElapsed = 0;
   renderCans();
+  beginPhase();
+  running = true;
+  toggleBtn.textContent = "Pause";
   updateDisplay();
   goToTimerScreen();
-  startInterval();
-});
+  startClock();
+}
 
-newSessionBtn.addEventListener("click", () => {
-  goToSetupScreen();
-});
+function goToTimerScreen() {
+  setupScreen.classList.add("hidden");
+  completeScreen.classList.add("hidden");
+  timerScreen.classList.remove("hidden");
+}
+
+function goToSetupScreen() {
+  stopClock();
+  running = false;
+  timerScreen.classList.add("hidden");
+  completeScreen.classList.add("hidden");
+  setupScreen.classList.remove("hidden");
+  document.body.classList.remove("break-mode");
+  renderSetupPreview();
+  document.title = "Drunk Pomodoro";
+}
+
+function goToCompleteScreen() {
+  stopClock();
+  running = false;
+  timerScreen.classList.add("hidden");
+  completeScreen.classList.remove("hidden");
+  updateCans();
+  finalCycles.textContent = `${cyclesCompleted} ${cyclesCompleted === 1 ? "beer" : "beers"} earned`;
+  finalStudyTime.textContent = formatDuration(studySecondsElapsed);
+  document.title = "Session done";
+}
+
+startBtn.addEventListener("click", startSession);
+newSessionBtn.addEventListener("click", startSession);
+settingsBtn.addEventListener("click", goToSetupScreen);
+completeSettingsBtn.addEventListener("click", goToSetupScreen);
+skipBtn.addEventListener("click", switchMode);
+cyclesInput.addEventListener("input", renderSetupPreview);
 
 toggleBtn.addEventListener("click", () => {
-  if (intervalId) {
-    stopInterval();
-  } else {
-    startInterval();
-  }
-});
-
-skipBtn.addEventListener("click", () => {
-  switchMode();
+  if (running) pause();
+  else resume();
 });
 
 resetBtn.addEventListener("click", () => {
-  stopInterval();
   mode = "study";
   totalSecondsForPhase = studyMinutes * 60;
   secondsLeft = totalSecondsForPhase;
   cyclesCompleted = 0;
   studySecondsElapsed = 0;
+  beginPhase();
+  running = true;
+  toggleBtn.textContent = "Pause";
   updateDisplay();
-  startInterval();
+  startClock();
 });
 
-settingsBtn.addEventListener("click", () => {
-  goToSetupScreen();
-});
+renderCans();
+updateDisplay();

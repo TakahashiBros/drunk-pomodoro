@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Drunk Pomodoro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&display=swap" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,53 +14,96 @@
   <main class="card">
 
     <section id="setup-screen" class="screen">
-      <h1>Drunk Pomodoro</h1>
-      <p class="subtitle">Set your study and drinking times</p>
+      <header class="brand">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2"></path></svg>
+        </span>
+        <span>
+          <h1>Drunk Pomodoro</h1>
+          <p class="subtitle">Every finished cycle earns you a beer.</p>
+        </span>
+      </header>
 
-      <label for="study-input">Study time (minutes)</label>
-      <input type="number" id="study-input" min="1" max="180" value="25" />
+      <div class="fields">
+        <div class="field">
+          <label for="study-input"><span class="field-name">Study time</span><span class="field-hint">minutes of focus per cycle</span></label>
+          <input type="number" id="study-input" class="pill-input" min="1" max="180" value="25" />
+        </div>
+        <div class="field">
+          <label for="break-input"><span class="field-name">Drinking time</span><span class="field-hint">the break between cycles</span></label>
+          <input type="number" id="break-input" class="pill-input" min="1" max="60" value="5" />
+        </div>
+        <div class="field">
+          <label for="cycles-input"><span class="field-name">Beers to earn</span><span class="field-hint">one per study cycle</span></label>
+          <input type="number" id="cycles-input" class="pill-input" min="1" max="20" value="4" />
+        </div>
+      </div>
 
-      <label for="break-input">Drinking time (minutes)</label>
-      <input type="number" id="break-input" min="1" max="60" value="5" />
+      <div class="ledge">
+        <p class="ledge-kicker">Tonight's shelf</p>
+        <div id="setup-cans" class="cans"></div>
+      </div>
 
-      <label for="cycles-input">Number of study cycles</label>
-      <input type="number" id="cycles-input" min="1" max="20" value="4" />
-
-      <button id="start-btn" class="primary-btn">Start</button>
+      <button id="start-btn" class="btn btn-primary btn-block">Start the session</button>
     </section>
 
     <section id="timer-screen" class="screen hidden">
-      <div class="timer-visual">
-        <svg class="progress-svg" viewBox="0 0 200 110">
-          <path class="track" d="M 10 100 A 90 90 0 0 1 190 100" />
-          <path id="progress-arc" class="progress-arc" d="M 10 100 A 90 90 0 0 1 190 100" />
+      <header class="timer-head">
+        <p class="wordmark">Drunk Pomodoro</p>
+        <p id="cycle-count" class="kicker">Cycle 1 / 4</p>
+      </header>
+
+      <div class="ring">
+        <svg viewBox="0 0 120 120" class="ring-svg">
+          <circle class="ring-track" cx="60" cy="60" r="52" />
+          <circle id="progress-arc" class="ring-fill" cx="60" cy="60" r="52" />
         </svg>
-        <div class="visual-text">
-          <p id="mode-label" class="mode-label">STUDY</p>
+        <div class="ring-text">
+          <p id="mode-label" class="mode-label">Study</p>
           <p id="time-display" class="time-display">25:00</p>
+          <p id="next-label" class="next-label">then 5 min to drink</p>
         </div>
       </div>
-      <p id="cycle-count" class="cycle-count">Cycle 1 of 4</p>
 
       <div class="button-row">
-        <button id="toggle-btn" class="primary-btn">Pause</button>
-        <button id="skip-btn" class="secondary-btn">Skip</button>
-        <button id="reset-btn" class="secondary-btn">Reset</button>
+        <button id="toggle-btn" class="btn btn-primary">Pause</button>
+        <button id="skip-btn" class="btn btn-secondary">Skip</button>
+        <button id="reset-btn" class="btn btn-secondary">Reset</button>
       </div>
 
-      <button id="settings-btn" class="link-btn">Change settings</button>
+      <div class="ledge ledge-row">
+        <div id="timer-cans" class="cans"></div>
+        <div class="earned">
+          <p id="earned-count" class="earned-num">0</p>
+          <p class="kicker">Earned</p>
+        </div>
+      </div>
+
+      <button id="settings-btn" class="btn btn-quiet">Change settings</button>
     </section>
 
     <section id="complete-screen" class="screen hidden">
-      <h1>Drinking session complete</h1>
-      <p class="subtitle">You drank <span id="final-cycles"></span>. Feeling drunk already or should we drink some more?</p>
-      <p class="study-total">Time spent studying: <strong id="final-study-time"></strong></p>
-      <button id="new-session-btn" class="primary-btn">New session</button>
+      <p class="tag">Session done</p>
+      <h1 id="final-cycles" class="final-heading">4 beers earned</h1>
+      <p class="subtitle wrap">Feeling drunk already, or should we drink some more?</p>
+
+      <div class="ledge">
+        <div id="complete-cans" class="cans"></div>
+        <div class="shelf-line"></div>
+      </div>
+
+      <div class="stat">
+        <span>Time spent studying</span>
+        <strong id="final-study-time">1 h 40 min</strong>
+      </div>
+
+      <div class="button-row">
+        <button id="new-session-btn" class="btn btn-primary btn-grow">One more round</button>
+        <button id="complete-settings-btn" class="btn btn-quiet">Change settings</button>
+      </div>
     </section>
 
   </main>
-
-  <div id="cans-container" class="cans-container hidden"></div>
 
   <script src="script.js"></script>
 </body>
