@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Drunk Pomodoro</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <main class="card">
+
+    <section id="setup-screen" class="screen">
+      <h1>Drunk Pomodoro</h1>
+      <p class="subtitle">Set your study and drinking times</p>
+
+      <label for="study-input">Study time (minutes)</label>
+      <input type="number" id="study-input" min="1" max="180" value="25" />
+
+      <label for="break-input">Drinking time (minutes)</label>
+      <input type="number" id="break-input" min="1" max="60" value="5" />
+
+      <label for="cycles-input">Number of study cycles</label>
+      <input type="number" id="cycles-input" min="1" max="20" value="4" />
+
+      <button id="start-btn" class="primary-btn">Start</button>
+    </section>
+
+    <section id="timer-screen" class="screen hidden">
+      <div class="timer-visual">
+        <svg class="progress-svg" viewBox="0 0 200 110">
+          <path class="track" d="M 10 100 A 90 90 0 0 1 190 100" />
+          <path id="progress-arc" class="progress-arc" d="M 10 100 A 90 90 0 0 1 190 100" />
+        </svg>
+        <div class="visual-text">
+          <p id="mode-label" class="mode-label">STUDY</p>
+          <p id="time-display" class="time-display">25:00</p>
+        </div>
+      </div>
+      <p id="cycle-count" class="cycle-count">Cycle 1 of 4</p>
+
+      <div class="button-row">
+        <button id="toggle-btn" class="primary-btn">Pause</button>
+        <button id="skip-btn" class="secondary-btn">Skip</button>
+        <button id="reset-btn" class="secondary-btn">Reset</button>
+      </div>
+
+      <button id="settings-btn" class="link-btn">Change settings</button>
+    </section>
+
+    <section id="complete-screen" class="screen hidden">
+      <h1>Drinking session complete</h1>
+      <p class="subtitle">You drank <span id="final-cycles"></span>. Feeling drunk already or should we drink some more?</p>
+      <p class="study-total">Time spent studying: <strong id="final-study-time"></strong></p>
+      <button id="new-session-btn" class="primary-btn">New session</button>
+    </section>
+
+  </main>
+
+  <div id="cans-container" class="cans-container hidden"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
